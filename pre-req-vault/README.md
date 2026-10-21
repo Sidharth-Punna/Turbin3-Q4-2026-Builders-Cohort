@@ -1,6 +1,8 @@
 # pre-req-vault
 
-Turbin3 Q4 2026 Builders Cohort prerequisite, Part 1. The repo is a fork of [ShrinathNR/pre-req-vault](https://github.com/ShrinathNR/pre-req-vault).
+Turbin3 Q4 2026 Builders Cohort prerequisite, Part 1. This folder started from [ShrinathNR/pre-req-vault](https://github.com/ShrinathNR/pre-req-vault). Its full commit history is kept here, so `git log -- pre-req-vault` shows the original commits followed by my changes.
+
+Run every command below from inside this folder.
 
 This is an Anchor vault program. Each user gets a PDA vault they can deposit SOL into, withdraw from, and close. The `withdraw` instruction was extended to make a **Cross-Program Invocation (CPI)** into the Turbin3 registration program, which records the user's GitHub username on-chain.
 
