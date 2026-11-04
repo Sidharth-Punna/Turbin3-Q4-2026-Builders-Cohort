@@ -1,10 +1,21 @@
-# Looking Up: my photo as a Solana NFT
+# Looking Up: my photo on Solana
 
-Turbin3 Q4 2026 Builders Cohort: SPL token and Metaplex Core NFT scripts on Solana **devnet**.
+Turbin3 Q4 2026 Builders Cohort: an SPL token and a Metaplex Core NFT on Solana **devnet**, both built around one of my own street photographs.
 
-The NFT part takes one of my own street photographs and runs it through the full lifecycle of a [Metaplex Core](https://www.metaplex.com/docs/smart-contracts/core) asset. It gets minted, renamed and re-described by the update authority, transferred to another wallet, and burned for its rent.
+- **LKUP**, a fungible SPL token with Token Metadata, that I mint and transfer.
+- **"Looking Up"**, a [Metaplex Core](https://www.metaplex.com/docs/smart-contracts/core) NFT of the photo. It runs through its full lifecycle: minted, renamed and re-described by the update authority, transferred to another wallet, and burned for its rent.
 
 ![Looking Up: six boys in an underpass looking up toward the light](https://gateway.irys.xyz/CKeLdY4XKR2Vub5bCDZsuvX7dLDrLsTjJoL8ruyGrW8X)
+
+## Assignment checklist
+
+| # | Task | Scripts | Proof on devnet |
+|---|---|---|---|
+| 1 | Mint and transfer my own SPL token | `spl:init` → `spl:metadata` → `spl:mint` → `spl:transfer` | [mint](https://explorer.solana.com/address/9o6ZZPQ7yA19sd7pMGsV9EGnt1XW5cRX3vY7dcN2fa7j?cluster=devnet), [transfer tx](https://explorer.solana.com/tx/jov9H7N4eXtSuUCaC1UR5p9XCnx6ogMijmvB7e4XP2mjp7D4TqQR9nNeA6j8tTVe15bUNPCBu8TTBBipxfGcuUq?cluster=devnet) |
+| 2 | Mint an NFT using MPL Core | `nft:image` → `nft:metadata` → `nft:mint` | [mint tx](https://explorer.solana.com/tx/3JUeYzDep8NXcrfFezNGbgFfRZXDq18PSZP57jemMz9UyXDN58NUZvhjJGUAAfZawCvdevizSwSHHx656ya2fMAK?cluster=devnet) |
+| 3 | Update the NFT's name and metadata as update authority | `nft:update` | [update tx](https://explorer.solana.com/tx/34Vsa8aLtqCLH2G8k7b8qdtfWUM5oPEJmgijKwaTCso7SZ5PD8vrPKhQKE1PZfZVAD913b8gohUyPGKn3TZMqy55?cluster=devnet) |
+| 4 | *(extension)* Transfer NFT ownership between wallets | `nft:transfer` | [transfer tx](https://explorer.solana.com/tx/21GxbZjiJyvkxF2RV8otDt2QhtbcFHAUsiDUqns8qkakzZefUgvLodvCJq4EZrGMxmCKJpGJgpx5uNhMwkv1Aw1Z?cluster=devnet) |
+| 5 | *(extension)* Burn the NFT and reclaim rent | `nft:burn` | [burn tx](https://explorer.solana.com/tx/2DuPMXCjd9psopmLkG3176zZJiLVhrCCzP54qoRuuRXCuvVTAJ87Nw1vLEtjC8rxzUFzVwhkRUdH4jNMNHo6sKYN?cluster=devnet) |
 
 ---
 
@@ -12,7 +23,7 @@ The NFT part takes one of my own street photographs and runs it through the full
 
 ### 1. Add your wallets
 
-Place your devnet keypair at the project root. It's a JSON array of numbers, e.g. `[174, 23, ...]`. The NFT transfer and burn steps also need a second wallet to receive the NFT:
+Place your devnet keypair at the project root. It's a JSON array of numbers, e.g. `[174, 23, ...]`. The transfer steps also need a second wallet to receive the tokens and the NFT:
 
 ```bash
 solana-keygen new --no-bip39-passphrase -o devnet-wallet-2.json
@@ -20,11 +31,11 @@ solana-keygen new --no-bip39-passphrase -o devnet-wallet-2.json
 
 ```
 root/
-├── devnet-wallet.json     ← main wallet (payer, mint owner, update authority)
-└── devnet-wallet-2.json   ← receives the NFT in nft:transfer, signs nft:burn
+├── devnet-wallet.json     ← main wallet (payer, mint authority, NFT update authority)
+└── devnet-wallet-2.json   ← receives LKUP and the NFT, signs nft:burn
 ```
 
-Both files are gitignored. Fund the main wallet with devnet SOL (`solana airdrop 2 --url devnet`). The second wallet needs no SOL, because the main wallet pays every fee.
+Both files are gitignored. Fund the main wallet with devnet SOL (`solana airdrop 2 --url devnet`). The second wallet needs no SOL, because the main wallet pays every fee and every account it receives.
 
 ### 2. Install dependencies
 
@@ -34,15 +45,59 @@ npm install
 
 ### 3. Add your image
 
-Place the image at the project root as `photo.webp`. It's gitignored, and only the Irys copy is public. To use another format, change the filename and `contentType` in `nft_image.ts` and the `type` in the metadata.
+Place the image at the project root as `photo.webp`. It's gitignored, and only the Irys copy is public. Run `npm run nft:image` first: the image URI it logs is used by both the NFT metadata and the token metadata, which shows it as the token icon. To use another format, change the filename and `contentType` in `nft_image.ts` and the `type` in the metadata.
 
-All scripts default to `https://api.devnet.solana.com`. Set `SOLANA_RPC_URL` to use a different devnet RPC.
+The scripts use the public devnet RPC (`https://api.devnet.solana.com`). The NFT scripts also read `SOLANA_RPC_URL` if you set it.
 
 > Background reading:
 > - [Solana token docs](https://solana.com/docs/tokens): mint accounts, token accounts, and ATAs
 > - [Solana Kit](https://www.solanakit.com/): the JS SDK used for the SPL scripts
 > - [Metaplex Token Metadata](https://www.metaplex.com/docs/smart-contracts/token-metadata): attaching metadata to SPL tokens
 > - [Metaplex Core](https://www.metaplex.com/docs/smart-contracts/core): the NFT standard used in the NFT scripts
+
+---
+
+## SPL token: Looking Up (LKUP)
+
+Uses **@solana/kit** with **@solana-program/token** and **@solana-program/system** for transactions, and **mpl-token-metadata** via UMI for the token's name, symbol and icon.
+
+| Script | Command | What it does |
+|---|---|---|
+| `spl_init.ts` | `npm run spl:init` | Creates a rent-exempt account owned by the Token Program, then initializes it as a mint: 6 decimals, my wallet as mint authority, no freeze authority |
+| `spl_metadata.ts` | `npm run spl:metadata` | Uploads the token JSON (name, symbol, description, photo as icon) to Irys, then creates the Token Metadata account, signed by the mint authority |
+| `spl_mint.ts` | `npm run spl:mint` | Creates my associated token account (ATA) if needed and mints 1,000 LKUP into it |
+| `spl_transfer.ts` | `npm run spl:transfer` | Creates the recipient's ATA if needed and sends 100 LKUP with `transferChecked` |
+
+Run them in order. Each script has the address from the previous step pasted in as a constant.
+
+### What happened on devnet
+
+Mint: [`9o6ZZPQ7yA19sd7pMGsV9EGnt1XW5cRX3vY7dcN2fa7j`](https://explorer.solana.com/address/9o6ZZPQ7yA19sd7pMGsV9EGnt1XW5cRX3vY7dcN2fa7j?cluster=devnet)
+
+| Step | Result | Transaction |
+|---|---|---|
+| Create mint | 6 decimals, mint authority `23MU5p…`, supply 0 | [`5zMTXoAQ…`](https://explorer.solana.com/tx/5zMTXoAQEYmoykamcj1ip4znvXQA4aFfYXQsu4czHqKSuwJx1KJTehjnuKUdhK6JjsBeFj1rBFofGd6675u2d2jk?cluster=devnet) |
+| Attach metadata | Metadata PDA [`Hz6PG1pY…`](https://explorer.solana.com/address/Hz6PG1pYD7vswyY4HByDW7o9XpQAmUvcvJKVCPtKWYqV?cluster=devnet): "Looking Up" / LKUP, JSON at [`DR2WUgJu…`](https://gateway.irys.xyz/DR2WUgJuPNLqaKcGi3wDmgGFZm9JqAe7jvSi3zoc4xpy). Token standard `Fungible` | [`5Y84Ae2c…`](https://explorer.solana.com/tx/5Y84Ae2cSTwvw3ds1YezDycgxb9fkUxiba21ipEPVB46ezXtErpWdhHgvHbwpApfuqhseTxP6AMmfVe3VxWFPLAc?cluster=devnet) |
+| Mint 1,000 LKUP | My ATA [`8qMTNyxP…`](https://explorer.solana.com/address/8qMTNyxPjqN6UwHJpE4fh2ibKjL46kg9e6tS9WzbWkA4?cluster=devnet) holds 1,000 | [`2A81LNNu…`](https://explorer.solana.com/tx/2A81LNNuoC8Z8FrcyBXpPUcnXdFfbRUtjUQgkKY1Q8t5RAcdfVbHjSY9f4T4dwmg5Q58KgYtRKYAfwuK995xHkss?cluster=devnet) |
+| Transfer 100 LKUP | My ATA: 900, second wallet's ATA [`FXXwnigm…`](https://explorer.solana.com/address/FXXwnigmP6Vf9ySuPYkb9jWcFBUmqkhLnCh9hGuMPQuT?cluster=devnet): 100 | [`jov9H7N4…`](https://explorer.solana.com/tx/jov9H7N4eXtSuUCaC1UR5p9XCnx6ogMijmvB7e4XP2mjp7D4TqQR9nNeA6j8tTVe15bUNPCBu8TTBBipxfGcuUq?cluster=devnet) |
+
+### Where the SOL went
+
+These figures come from each transaction's pre/post balances. Devnet rent at the time was 5,080 lamports per byte plus a 128-byte account overhead.
+
+| Step | Main wallet | Breakdown |
+|---|---|---|
+| Create mint | −0.0010768 SOL | 0.0010668 rent (82-byte mint) + 0.00001 tx fee (2 signers: wallet + new mint keypair) |
+| Attach metadata | −0.0137388 SOL | 0.0037338 rent (607-byte metadata account) + **0.01 Token Metadata protocol fee** + 0.000005 tx fee |
+| Mint 1,000 | −0.00149344 SOL | 0.00148844 rent (165-byte token account) + 0.000005 tx fee |
+| Transfer 100 | −0.00149344 SOL | 0.00148844 rent for **the recipient's** ATA, paid by the sender + 0.000005 tx fee |
+
+### What I learned
+
+- **Wallets don't hold tokens; token accounts do.** The mint stores supply, decimals and authorities. Every holder needs their own 165-byte token account per mint, and the *associated* token account is a PDA derived from (owner, mint), so anyone can compute where to send.
+- **Sending to a new holder costs more than the fee.** The recipient had no LKUP account, so the sender paid ~0.0015 SOL rent to create it. Using the *idempotent* create instruction makes the scripts safe to re-run.
+- **Amounts are integers.** With 6 decimals, "100 LKUP" is `100_000_000` base units. `transferChecked` also passes the mint and decimals, so the program rejects a transfer built against the wrong mint or decimal count.
+- **Name and symbol aren't part of SPL Token.** They live in a separate Token Metadata account (a PDA of the mint), and only the mint authority can create it. That one step cost more than everything else in this repo combined because of its 0.01 SOL protocol fee.
 
 ---
 
@@ -74,9 +129,9 @@ Asset: [`DFWRWMAHUoJvj6hXv4LjwcqwDDcXy6QD4awLPff1NHjx`](https://explorer.solana.
 | Transfer | Owner `23MU5p…` → `URBgid…`, update authority unchanged | [`21GxbZji…`](https://explorer.solana.com/tx/21GxbZjiJyvkxF2RV8otDt2QhtbcFHAUsiDUqns8qkakzZefUgvLodvCJq4EZrGMxmCKJpGJgpx5uNhMwkv1Aw1Z?cluster=devnet) |
 | Burn | Asset shrunk to a 1-byte tombstone, rent returned to the payer | [`2DuPMXCj…`](https://explorer.solana.com/tx/2DuPMXCjd9psopmLkG3176zZJiLVhrCCzP54qoRuuRXCuvVTAJ87Nw1vLEtjC8rxzUFzVwhkRUdH4jNMNHo6sKYN?cluster=devnet) |
 
-### Where the SOL went
+> Solana Explorer shows Core instructions as "Unknown Program". It has no built-in parser for Metaplex Core, and Core is not an Anchor program with an on-chain IDL. Optional accounts that weren't passed (collection, owner, update authority…) show up as the Core program's own address, which is the "none" placeholder.
 
-These figures come from each transaction's pre/post balances. Devnet rent at the time was 5,080 lamports per byte plus a 128-byte account overhead.
+### Where the SOL went
 
 | Step | Main wallet | Breakdown |
 |---|---|---|
@@ -89,22 +144,7 @@ After the burn the asset account still holds 0.00215532 SOL. That's 0.00065532 o
 
 ### What I learned
 
-- **A Core NFT is one account.** Token Metadata NFTs need a mint, a token account, a metadata account and a master edition. A Core asset stores the owner, update authority, name and URI in a single account. Transfer is one instruction that rewrites the owner field, with no associated token accounts to create.
+- **A Core NFT is one account.** A Token Metadata NFT needs a mint, a token account, a metadata account and a master edition. The LKUP token above already needed three accounts. A Core asset stores the owner, update authority, name and URI in a single account. Transfer is one instruction that rewrites the owner field, with no associated token accounts to create.
 - **Owner and update authority are separate roles.** After the transfer the second wallet owned the NFT, but the main wallet was still the update authority and could have kept editing its metadata. Only the owner, or a delegate set up through a plugin, can transfer or burn it.
 - **Updating means new JSON plus an on-chain pointer.** The image and JSON on Irys can't be edited. "Updating metadata" means uploading a new JSON and having the update authority swap the on-chain `uri`, and the `name` too if it changes. If the name gets longer, the account is resized and the extra rent is paid.
 - **A burn doesn't fully close the account.** Core leaves a 1-byte tombstone so the address can never be reused for a new asset. The rest of the rent goes to the transaction **payer**, not the owner who signed. The 0.0015 SOL creation fee isn't refundable.
-
----
-
-## SPL Token
-
-Uses **@solana/kit** and **@solana-program/token** for transactions, and **mpl-token-metadata** via UMI for on-chain metadata.
-
-| Script | Command | What it does |
-|---|---|---|
-| `spl_init.ts` | `npm run spl:init` | Creates a new mint account |
-| `spl_metadata.ts` | `npm run spl:metadata` | Attaches a name, symbol, and URI to the mint |
-| `spl_mint.ts` | `npm run spl:mint` | Creates your associated token account and mints tokens into it |
-| `spl_transfer.ts` | `npm run spl:transfer` | Sends tokens to another wallet's associated token account |
-
-Run them in order. Each script logs the addresses or signatures you'll need to paste into the next one.
