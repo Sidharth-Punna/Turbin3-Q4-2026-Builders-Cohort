@@ -1,6 +1,5 @@
 import {
   address,
-  appendTransactionMessageInstruction,
   appendTransactionMessageInstructions,
   assertIsTransactionWithBlockhashLifetime,
   createKeyPairSignerFromBytes,
@@ -16,7 +15,7 @@ import {
 import wallet from "../../devnet-wallet.json";
 import {
   findAssociatedTokenPda,
-  getCreateAssociatedTokenInstructionAsync,
+  getCreateAssociatedTokenIdempotentInstructionAsync,
   getMintToInstruction,
   TOKEN_PROGRAM_ADDRESS,
 } from "@solana-program/token";
@@ -27,10 +26,11 @@ const rpcSubscriptions = createSolanaRpcSubscriptions(
   "wss://api.devnet.solana.com",
 );
 
-const token_decimals = 1_000_000n;
+// the mint has 6 decimals, so 1 LKUP = 1_000_000 base units
+const oneToken = 1_000_000n;
 
-//paste your mint address got from spl_init.ts
-const mint = address("E2Jazz2VXcVL9RZkn6ZFA4q1YGvgEvrns3Gr6w72DC4w");
+// mint address logged by spl_init.ts
+const mint = address("9o6ZZPQ7yA19sd7pMGsV9EGnt1XW5cRX3vY7dcN2fa7j");
 
 (async () => {
   try {
@@ -43,8 +43,22 @@ const mint = address("E2Jazz2VXcVL9RZkn6ZFA4q1YGvgEvrns3Gr6w72DC4w");
     });
     console.log(`Your ata is : ${ata}`);
 
-    // const createAtaIx =
-    // const mintToIx =
+    // 1. create my associated token account (no-op if it already exists)
+    const createAtaIx = await getCreateAssociatedTokenIdempotentInstructionAsync(
+      {
+        payer: signer,
+        mint,
+        owner: signer.address,
+      },
+    );
+
+    // 2. mint 1,000 LKUP into it; only the mint authority can sign this
+    const mintToIx = getMintToInstruction({
+      mint,
+      token: ata,
+      mintAuthority: signer,
+      amount: 1_000n * oneToken,
+    });
 
     const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
@@ -52,30 +66,30 @@ const mint = address("E2Jazz2VXcVL9RZkn6ZFA4q1YGvgEvrns3Gr6w72DC4w");
 
     const msgWithPayer = setTransactionMessageFeePayerSigner(signer, msg);
 
-    const msgWithLiftime = setTransactionMessageLifetimeUsingBlockhash(
+    const msgWithLifetime = setTransactionMessageLifetimeUsingBlockhash(
       latestBlockhash,
       msgWithPayer,
     );
 
-    // const txMessage = appendTransactionMessageInstructions(
-    //   [createAtaIx, mintToIx],
-    //   msgWithLiftime,
-    // );
+    const txMessage = appendTransactionMessageInstructions(
+      [createAtaIx, mintToIx],
+      msgWithLifetime,
+    );
 
-    // const signedTx = await signTransactionMessageWithSigners(txMessage);
+    const signedTx = await signTransactionMessageWithSigners(txMessage);
 
-    // assertIsTransactionWithBlockhashLifetime(signedTx);
+    assertIsTransactionWithBlockhashLifetime(signedTx);
 
-    // const signature = getSignatureFromTransaction(signedTx);
+    const signature = getSignatureFromTransaction(signedTx);
 
-    // const sendAndConfirm = sendAndConfirmTransactionFactory({
-    //   rpc,
-    //   rpcSubscriptions,
-    // });
+    const sendAndConfirm = sendAndConfirmTransactionFactory({
+      rpc,
+      rpcSubscriptions,
+    });
 
-    // await sendAndConfirm(signedTx, { commitment: "confirmed" });
+    await sendAndConfirm(signedTx, { commitment: "confirmed" });
 
-    // console.log(`mint txid: ${signature}`);
+    console.log(`mint txid: ${signature}`);
   } catch (error) {
     console.log(error);
   }
