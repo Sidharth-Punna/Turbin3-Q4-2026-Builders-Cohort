@@ -26,14 +26,15 @@ umi.use(signerIdentity(signer));
 
 (async () => {
   try {
-    //chanege image path to your image path
-    const image = await readFile("file-path");
+    // the photo lives at the project root and is gitignored
+    const image = await readFile("photo.webp");
 
-    //change the image name and mime type
-    // const file =
+    const file = createGenericFile(image, "photo.webp", {
+      contentType: "image/webp",
+    });
 
-    // const [myUri] =
-    // console.log("Your image URI: ", myUri);
+    const [myUri] = await umi.uploader.upload([file]);
+    console.log("Your image URI: ", myUri);
   } catch (error) {
     console.log(error);
   }

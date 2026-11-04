@@ -23,15 +23,27 @@ umi.use(signerIdentity(signer));
 
 (async () => {
   try {
-    //change the image uri to your image uri obtained from nft_image.ts
+    // image uri logged by nft_image.ts
     const image =
-      "https://gateway.irys.xyz/5EDyiNrMWfhjdsEwXLrwkHPwZoZB2m1A2Kudrfxo1tpr";
+      "https://gateway.irys.xyz/CKeLdY4XKR2Vub5bCDZsuvX7dLDrLsTjJoL8ruyGrW8X";
 
-    //json scheme : https://www.metaplex.com/docs/smart-contracts/core/json-schema
-    //change the metadata
-    // const metadata =
-    // const myUri =
-    // console.log(`metadata uri: ${myUri} `);
+    // json schema: https://www.metaplex.com/docs/smart-contracts/core/json-schema
+    // minted under a working title; nft_update.ts swaps in the final title and metadata
+    const metadata = {
+      name: "Underpass",
+      description: "Black-and-white street photograph.",
+      image,
+      attributes: [
+        { trait_type: "Medium", value: "Photography" },
+        { trait_type: "Color", value: "Black & White" },
+      ],
+      properties: {
+        files: [{ uri: image, type: "image/webp" }],
+        category: "image",
+      },
+    };
+    const myUri = await umi.uploader.uploadJson(metadata);
+    console.log(`metadata uri: ${myUri} `);
   } catch (error) {
     console.log("error", error);
   }
