@@ -1,6 +1,6 @@
 # pre-req-vault
 
-Turbin3 Q4 2026 Builders Cohort prerequisite, Part 1. This folder started from [ShrinathNR/pre-req-vault](https://github.com/ShrinathNR/pre-req-vault). Its full commit history is kept here, so `git log -- pre-req-vault` shows the original commits followed by my changes.
+Turbin3 Q4 2026 Builders Cohort prerequisite, Part 1. This folder started from [ShrinathNR/pre-req-vault](https://github.com/ShrinathNR/pre-req-vault). Its full commit history is kept in this repo: `git log` shows the original template commits followed by mine, merged in by the "Add 'pre-req-vault/'" commit.
 
 Run every command below from inside this folder.
 
