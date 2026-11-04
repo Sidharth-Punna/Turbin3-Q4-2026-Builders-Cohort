@@ -23,9 +23,9 @@ pub mod q3_26_vault {
         ctx.accounts.deposit(amount)
     }
 
-    // pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-    //     ctx.accounts.withdraw(amount)
-    // }
+    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+        ctx.accounts.withdraw(amount)
+    }
 
     // pub fn close(ctx: Context<Close>) -> Result<()> {
     //     ctx.accounts.close()
