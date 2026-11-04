@@ -2,6 +2,8 @@
 
 Turbin3 Q4 2026 Builders Cohort: an SPL token and a Metaplex Core NFT on Solana **devnet**, both built around one of my own street photographs.
 
+This folder started from [ShrinathNR/turbine-spl-nft-26](https://github.com/ShrinathNR/turbine-spl-nft-26). Its full commit history is kept in this repo: `git log` shows the original template commits followed by mine, merged in by the "Add 'turbine-spl-nft-26/'" commit. Run every command below from inside this folder.
+
 - **LKUP**, a fungible SPL token with Token Metadata, that I mint and transfer.
 - **"Looking Up"**, a [Metaplex Core](https://www.metaplex.com/docs/smart-contracts/core) NFT of the photo. It runs through its full lifecycle: minted, renamed and re-described by the update authority, transferred to another wallet, and burned for its rent.
 
