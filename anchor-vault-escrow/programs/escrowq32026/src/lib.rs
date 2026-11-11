@@ -44,6 +44,7 @@ pub mod escrowq32026 {
 
     #[instruction(discriminator = 2)]
     pub fn refund(ctx: Context<Refund>) -> Result<()> {
+        ctx.accounts.check_expired()?;
         ctx.accounts.refund_and_close_vault()
     }
 }

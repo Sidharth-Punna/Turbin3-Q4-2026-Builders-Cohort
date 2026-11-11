@@ -4,7 +4,7 @@ use anchor_spl::token_interface::{
     TransferChecked,
 };
 
-use crate::{state::Escrow, ESCROW_SEED};
+use crate::{error::ErrorCode, state::Escrow, ESCROW_SEED};
 
 #[derive(Accounts)]
 pub struct Refund<'info> {
@@ -37,6 +37,12 @@ pub struct Refund<'info> {
 }
 
 impl<'info> Refund<'info> {
+    pub fn check_expired(&self) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        require!(now >= self.escrow.expiration, ErrorCode::EscrowNotExpired);
+        Ok(())
+    }
+
     //Refund tokens from vault to maker and close vault
     pub fn refund_and_close_vault(&mut self) -> Result<()> {
         let signer_seeds: [&[&[u8]]; 1] = [&[

@@ -143,6 +143,8 @@ fn test_make_and_refund() {
     assert_eq!(escrow_data.mint_b, mint_b);
     assert_eq!(escrow_data.receive, 10_000_000);
 
+    set_time(&mut program, escrow_data.expiration);
+
     // Create the "Refund" instruction to refund tokens back to the maker
     let refund_ix = Instruction {
         program_id: escrowq32026::id(),
@@ -180,12 +182,14 @@ const OFFER_SEED: u64 = 7;
 const OFFERED_A: u64 = 10_000_000;
 const ASKED_B: u64 = 25_000_000;
 const TAKER_B: u64 = 100_000_000;
+const WINDOW: i64 = 3_600;
 
 struct Offer {
     maker: Keypair,
     taker: Keypair,
     mint_a: Pubkey,
     mint_b: Pubkey,
+    maker_ata_a: Pubkey,
     escrow: Pubkey,
     vault: Pubkey,
     taker_ata_b: Pubkey,
@@ -205,7 +209,21 @@ fn token_amount(svm: &LiteSVM, token_account: &Pubkey) -> u64 {
         .amount
 }
 
-fn open_offer(svm: &mut LiteSVM, maker: Keypair, expiration: i64) -> Offer {
+fn now(svm: &LiteSVM) -> i64 {
+    svm.get_sysvar::<Clock>().unix_timestamp
+}
+
+fn set_time(svm: &mut LiteSVM, unix_timestamp: i64) {
+    let mut clock = svm.get_sysvar::<Clock>();
+    clock.unix_timestamp = unix_timestamp;
+    svm.set_sysvar(&clock);
+}
+
+fn program_error(code: ErrorCode) -> TransactionError {
+    TransactionError::InstructionError(0, InstructionError::Custom(code.into()))
+}
+
+fn new_offer(svm: &mut LiteSVM, maker: Keypair) -> Offer {
     let mint_a = CreateMint::new(svm, &maker)
         .decimals(6)
         .authority(&maker.pubkey())
@@ -236,30 +254,6 @@ fn open_offer(svm: &mut LiteSVM, maker: Keypair, expiration: i64) -> Offer {
     .0;
     let vault = associated_token::get_associated_token_address(&escrow, &mint_a);
 
-    let make_ix = Instruction {
-        program_id: escrowq32026::id(),
-        accounts: escrowq32026::accounts::Make {
-            maker: maker.pubkey(),
-            mint_a,
-            mint_b,
-            maker_ata_a,
-            escrow,
-            vault,
-            associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
-            token_program: TOKEN_PROGRAM_ID,
-            system_program: SYSTEM_PROGRAM_ID,
-        }
-        .to_account_metas(None),
-        data: escrowq32026::instruction::Make {
-            seed: OFFER_SEED,
-            deposit: OFFERED_A,
-            receive: ASKED_B,
-            expiration,
-        }
-        .data(),
-    };
-    send(svm, &maker, make_ix).unwrap();
-
     let taker = Keypair::new();
     svm.airdrop(&taker.pubkey(), 1_000_000_000).unwrap();
     let taker_ata_b = CreateAssociatedTokenAccount::new(svm, &taker, &mint_b)
@@ -275,10 +269,42 @@ fn open_offer(svm: &mut LiteSVM, maker: Keypair, expiration: i64) -> Offer {
         taker,
         mint_a,
         mint_b,
+        maker_ata_a,
         escrow,
         vault,
         taker_ata_b,
     }
+}
+
+fn make_ix(offer: &Offer, expiration: i64) -> Instruction {
+    Instruction {
+        program_id: escrowq32026::id(),
+        accounts: escrowq32026::accounts::Make {
+            maker: offer.maker.pubkey(),
+            mint_a: offer.mint_a,
+            mint_b: offer.mint_b,
+            maker_ata_a: offer.maker_ata_a,
+            escrow: offer.escrow,
+            vault: offer.vault,
+            associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
+            token_program: TOKEN_PROGRAM_ID,
+            system_program: SYSTEM_PROGRAM_ID,
+        }
+        .to_account_metas(None),
+        data: escrowq32026::instruction::Make {
+            seed: OFFER_SEED,
+            deposit: OFFERED_A,
+            receive: ASKED_B,
+            expiration,
+        }
+        .data(),
+    }
+}
+
+fn open_offer(svm: &mut LiteSVM, maker: Keypair, expiration: i64) -> Offer {
+    let offer = new_offer(svm, maker);
+    send(svm, &offer.maker, make_ix(&offer, expiration)).unwrap();
+    offer
 }
 
 fn take_ix(offer: &Offer) -> Instruction {
@@ -305,11 +331,28 @@ fn take_ix(offer: &Offer) -> Instruction {
     }
 }
 
+fn refund_ix(offer: &Offer) -> Instruction {
+    Instruction {
+        program_id: escrowq32026::id(),
+        accounts: escrowq32026::accounts::Refund {
+            maker: offer.maker.pubkey(),
+            mint_a: offer.mint_a,
+            maker_ata_a: offer.maker_ata_a,
+            escrow: offer.escrow,
+            vault: offer.vault,
+            token_program: TOKEN_PROGRAM_ID,
+            system_program: SYSTEM_PROGRAM_ID,
+        }
+        .to_account_metas(None),
+        data: escrowq32026::instruction::Refund {}.data(),
+    }
+}
+
 #[test]
 fn test_make_and_take() {
     let (mut svm, maker) = setup();
-    let now = svm.get_sysvar::<Clock>().unix_timestamp;
-    let offer = open_offer(&mut svm, maker, now + 3_600);
+    let expiration = now(&svm) + WINDOW;
+    let offer = open_offer(&mut svm, maker, expiration);
 
     let maker = offer.maker.pubkey();
     let taker_ata_a =
@@ -322,6 +365,7 @@ fn test_make_and_take() {
     let rent_returned =
         svm.get_balance(&offer.escrow).unwrap() + svm.get_balance(&offer.vault).unwrap();
 
+    set_time(&mut svm, expiration - 1);
     let tx = send(&mut svm, &offer.taker, take_ix(&offer)).unwrap();
     msg!("\n\nTake transaction successful");
     msg!("CUs Consumed: {}", tx.compute_units_consumed);
@@ -339,25 +383,49 @@ fn test_make_and_take() {
 }
 
 #[test]
+fn test_make_with_past_expiration_fails() {
+    let (mut svm, maker) = setup();
+    let offer = new_offer(&mut svm, maker);
+    let expiration = now(&svm);
+
+    let failed = send(&mut svm, &offer.maker, make_ix(&offer, expiration)).unwrap_err();
+    assert_eq!(failed.err, program_error(ErrorCode::ExpirationInPast));
+
+    assert!(svm.get_account(&offer.escrow).is_none());
+    assert_eq!(token_amount(&svm, &offer.maker_ata_a), OFFERED_A);
+}
+
+#[test]
 fn test_take_after_expiration_fails() {
     let (mut svm, maker) = setup();
-    let expiration = svm.get_sysvar::<Clock>().unix_timestamp + 3_600;
+    let expiration = now(&svm) + WINDOW;
     let offer = open_offer(&mut svm, maker, expiration);
 
-    let mut clock = svm.get_sysvar::<Clock>();
-    clock.unix_timestamp = expiration;
-    svm.set_sysvar(&clock);
-
+    set_time(&mut svm, expiration);
     let failed = send(&mut svm, &offer.taker, take_ix(&offer)).unwrap_err();
-    assert_eq!(
-        failed.err,
-        TransactionError::InstructionError(
-            0,
-            InstructionError::Custom(ErrorCode::EscrowExpired.into())
-        )
-    );
+    assert_eq!(failed.err, program_error(ErrorCode::EscrowExpired));
 
     assert_eq!(token_amount(&svm, &offer.vault), OFFERED_A);
     assert_eq!(token_amount(&svm, &offer.taker_ata_b), TAKER_B);
     assert!(svm.get_account(&offer.escrow).is_some());
+}
+
+#[test]
+fn test_refund_only_after_expiration() {
+    let (mut svm, maker) = setup();
+    let expiration = now(&svm) + WINDOW;
+    let offer = open_offer(&mut svm, maker, expiration);
+
+    set_time(&mut svm, expiration - 1);
+    let failed = send(&mut svm, &offer.maker, refund_ix(&offer)).unwrap_err();
+    assert_eq!(failed.err, program_error(ErrorCode::EscrowNotExpired));
+    assert_eq!(token_amount(&svm, &offer.vault), OFFERED_A);
+
+    set_time(&mut svm, expiration);
+    svm.expire_blockhash();
+    send(&mut svm, &offer.maker, refund_ix(&offer)).unwrap();
+
+    assert_eq!(token_amount(&svm, &offer.maker_ata_a), OFFERED_A);
+    assert!(svm.get_account(&offer.escrow).is_none());
+    assert!(svm.get_account(&offer.vault).is_none());
 }
