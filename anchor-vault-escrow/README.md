@@ -35,9 +35,9 @@ It's a timed escrow. The offer stays open until `expiration`, a unix timestamp c
 | `make(seed, deposit, receive, expiration)` | Creates the escrow and its vault and deposits token A. Rejects an `expiration` that isn't in the future. |
 | `take` | Before `expiration`: swaps the tokens and closes the vault and escrow, with the rent going back to the maker |
 | `refund` | From `expiration` on: returns token A to the maker and closes the vault and escrow |
-| `update` | Not written yet |
+| `update(receive, expiration)` | While the offer is open, lets the maker ask for less token B or push the expiration later. It can't raise the price or cut the window short, so a taker never pays more than the offer they saw. |
 
-`make` and `refund` came with the starter; I added their time checks and wrote `take`.
+`make` and `refund` came with the starter; I added their time checks and wrote `take` and `update`.
 
 ### Tests
 
@@ -47,6 +47,10 @@ It's a timed escrow. The offer stays open until `expiration`, a unix timestamp c
 - `test_make_with_past_expiration_fails`: `make` with an expiry of right now fails with `ExpirationInPast`
 - `test_take_after_expiration_fails`: at the expiry, `take` fails with `EscrowExpired` and no tokens move
 - `test_refund_only_after_expiration`: `refund` fails with `EscrowNotExpired` one second before the expiry, then works at the expiry
+- `test_update_then_take`: lowers the price and extends the expiry, then takes at the old expiry and pays the new price
+- `test_update_cannot_worsen_terms`: raising the price fails with `ReceiveRaised` and moving the expiry earlier fails with `ExpirationShortened`
+- `test_update_after_expiration_fails`: at the expiry, `update` fails with `EscrowExpired`
+- `test_update_by_someone_else_fails`: an update signed by anyone but the maker fails the escrow's seeds check
 - `test_make_and_refund` (starter): now moves the clock to the expiry before refunding
 
 ![escrow tests passing](docs/escrow-tests.png)

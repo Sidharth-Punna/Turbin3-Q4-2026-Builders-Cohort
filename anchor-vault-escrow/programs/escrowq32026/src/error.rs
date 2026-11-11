@@ -8,4 +8,8 @@ pub enum ErrorCode {
     ExpirationInPast,
     #[msg("The escrow can only be refunded once it has expired")]
     EscrowNotExpired,
+    #[msg("An update can't ask for more token B")]
+    ReceiveRaised,
+    #[msg("An update can't move the expiration earlier")]
+    ExpirationShortened,
 }

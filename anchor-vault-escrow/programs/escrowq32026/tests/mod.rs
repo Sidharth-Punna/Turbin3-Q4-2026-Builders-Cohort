@@ -429,3 +429,105 @@ fn test_refund_only_after_expiration() {
     assert!(svm.get_account(&offer.escrow).is_none());
     assert!(svm.get_account(&offer.vault).is_none());
 }
+
+fn update_ix(offer: &Offer, signer: Pubkey, receive: u64, expiration: i64) -> Instruction {
+    Instruction {
+        program_id: escrowq32026::id(),
+        accounts: escrowq32026::accounts::Update {
+            maker: signer,
+            escrow: offer.escrow,
+        }
+        .to_account_metas(None),
+        data: escrowq32026::instruction::Update {
+            receive,
+            expiration,
+        }
+        .data(),
+    }
+}
+
+fn escrow_state(svm: &LiteSVM, offer: &Offer) -> escrowq32026::state::Escrow {
+    let account = svm.get_account(&offer.escrow).unwrap();
+    escrowq32026::state::Escrow::try_deserialize(&mut account.data.as_ref()).unwrap()
+}
+
+#[test]
+fn test_update_then_take() {
+    let (mut svm, maker) = setup();
+    let expiration = now(&svm) + WINDOW;
+    let offer = open_offer(&mut svm, maker, expiration);
+    let new_receive = ASKED_B - 5_000_000;
+    let new_expiration = expiration + WINDOW;
+
+    let update = update_ix(&offer, offer.maker.pubkey(), new_receive, new_expiration);
+    send(&mut svm, &offer.maker, update).unwrap();
+    let escrow = escrow_state(&svm, &offer);
+    assert_eq!(escrow.receive, new_receive);
+    assert_eq!(escrow.expiration, new_expiration);
+
+    set_time(&mut svm, expiration);
+    send(&mut svm, &offer.taker, take_ix(&offer)).unwrap();
+
+    let maker_ata_b =
+        associated_token::get_associated_token_address(&offer.maker.pubkey(), &offer.mint_b);
+    assert_eq!(token_amount(&svm, &maker_ata_b), new_receive);
+    assert_eq!(
+        token_amount(&svm, &offer.taker_ata_b),
+        TAKER_B - new_receive
+    );
+}
+
+#[test]
+fn test_update_cannot_worsen_terms() {
+    let (mut svm, maker) = setup();
+    let expiration = now(&svm) + WINDOW;
+    let offer = open_offer(&mut svm, maker, expiration);
+    let maker = offer.maker.pubkey();
+
+    let raise = update_ix(&offer, maker, ASKED_B + 1, expiration);
+    let failed = send(&mut svm, &offer.maker, raise).unwrap_err();
+    assert_eq!(failed.err, program_error(ErrorCode::ReceiveRaised));
+
+    let shorten = update_ix(&offer, maker, ASKED_B, expiration - 1);
+    let failed = send(&mut svm, &offer.maker, shorten).unwrap_err();
+    assert_eq!(failed.err, program_error(ErrorCode::ExpirationShortened));
+
+    let escrow = escrow_state(&svm, &offer);
+    assert_eq!(escrow.receive, ASKED_B);
+    assert_eq!(escrow.expiration, expiration);
+}
+
+#[test]
+fn test_update_after_expiration_fails() {
+    let (mut svm, maker) = setup();
+    let expiration = now(&svm) + WINDOW;
+    let offer = open_offer(&mut svm, maker, expiration);
+
+    set_time(&mut svm, expiration);
+    let update = update_ix(&offer, offer.maker.pubkey(), ASKED_B, expiration + WINDOW);
+    let failed = send(&mut svm, &offer.maker, update).unwrap_err();
+    assert_eq!(failed.err, program_error(ErrorCode::EscrowExpired));
+
+    assert_eq!(escrow_state(&svm, &offer).expiration, expiration);
+}
+
+#[test]
+fn test_update_by_someone_else_fails() {
+    let (mut svm, maker) = setup();
+    let expiration = now(&svm) + WINDOW;
+    let offer = open_offer(&mut svm, maker, expiration);
+
+    let update = update_ix(&offer, offer.taker.pubkey(), 0, expiration + WINDOW);
+    let failed = send(&mut svm, &offer.taker, update).unwrap_err();
+    assert_eq!(
+        failed.err,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(anchor_lang::error::ErrorCode::ConstraintSeeds.into())
+        )
+    );
+
+    let escrow = escrow_state(&svm, &offer);
+    assert_eq!(escrow.receive, ASKED_B);
+    assert_eq!(escrow.expiration, expiration);
+}

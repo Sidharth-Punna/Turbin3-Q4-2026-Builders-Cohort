@@ -47,4 +47,9 @@ pub mod escrowq32026 {
         ctx.accounts.check_expired()?;
         ctx.accounts.refund_and_close_vault()
     }
+
+    #[instruction(discriminator = 3)]
+    pub fn update(ctx: Context<Update>, receive: u64, expiration: i64) -> Result<()> {
+        ctx.accounts.update(receive, expiration)
+    }
 }
