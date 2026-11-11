@@ -176,19 +176,11 @@ fn test_make_and_refund() {
     assert!(program.get_account(&vault).is_none());
 }
 
-// ---------------------------------------------------------------------------
-// take
-// ---------------------------------------------------------------------------
-
 const OFFER_SEED: u64 = 7;
-/// The maker offers 10 token A...
 const OFFERED_A: u64 = 10_000_000;
-/// ...for 25 token B.
 const ASKED_B: u64 = 25_000_000;
-/// The taker starts with 100 token B.
 const TAKER_B: u64 = 100_000_000;
 
-/// An open offer, plus a taker who holds enough token B to take it.
 struct Offer {
     maker: Keypair,
     taker: Keypair,
@@ -213,8 +205,6 @@ fn token_amount(svm: &LiteSVM, token_account: &Pubkey) -> u64 {
         .amount
 }
 
-/// Creates both mints, has `maker` offer OFFERED_A token A for ASKED_B token B
-/// until `expiration`, and funds a fresh taker with TAKER_B token B.
 fn open_offer(svm: &mut LiteSVM, maker: Keypair, expiration: i64) -> Offer {
     let mint_a = CreateMint::new(svm, &maker)
         .decimals(6)
@@ -325,7 +315,6 @@ fn test_make_and_take() {
     let taker_ata_a =
         associated_token::get_associated_token_address(&offer.taker.pubkey(), &offer.mint_a);
     let maker_ata_b = associated_token::get_associated_token_address(&maker, &offer.mint_b);
-    // Neither account exists yet: take creates both, and the taker pays for them.
     assert!(svm.get_account(&taker_ata_a).is_none());
     assert!(svm.get_account(&maker_ata_b).is_none());
 
@@ -337,12 +326,10 @@ fn test_make_and_take() {
     msg!("\n\nTake transaction successful");
     msg!("CUs Consumed: {}", tx.compute_units_consumed);
 
-    // The swap happened in both directions.
     assert_eq!(token_amount(&svm, &taker_ata_a), OFFERED_A);
     assert_eq!(token_amount(&svm, &maker_ata_b), ASKED_B);
     assert_eq!(token_amount(&svm, &offer.taker_ata_b), TAKER_B - ASKED_B);
 
-    // The escrow and the vault are closed, and the maker gets both rents back.
     assert!(svm.get_account(&offer.escrow).is_none());
     assert!(svm.get_account(&offer.vault).is_none());
     assert_eq!(
@@ -357,7 +344,6 @@ fn test_take_after_expiration_fails() {
     let expiration = svm.get_sysvar::<Clock>().unix_timestamp + 3_600;
     let offer = open_offer(&mut svm, maker, expiration);
 
-    // Move the clock to the expiration second. From then on the offer can't be taken.
     let mut clock = svm.get_sysvar::<Clock>();
     clock.unix_timestamp = expiration;
     svm.set_sysvar(&clock);
@@ -371,7 +357,6 @@ fn test_take_after_expiration_fails() {
         )
     );
 
-    // Nothing moved: the vault still holds the offer, and the taker kept their token B.
     assert_eq!(token_amount(&svm, &offer.vault), OFFERED_A);
     assert_eq!(token_amount(&svm, &offer.taker_ata_b), TAKER_B);
     assert!(svm.get_account(&offer.escrow).is_some());

@@ -12,8 +12,6 @@ pub struct Close<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    // `close = user` makes Anchor delete this account after the handler runs
-    // and send its rent lamports back to the user.
     #[account(
         mut,
         seeds = [STATE, user.key().as_ref()],
@@ -40,7 +38,6 @@ impl<'info> Close<'info> {
             to: self.user.to_account_info(),
         };
 
-        // The vault is a PDA, so the program signs for it with its seeds.
         let user_key = self.user.key();
         let signer_seeds: &[&[&[u8]]] = &[&[
             VAULT_SEED,
@@ -50,8 +47,6 @@ impl<'info> Close<'info> {
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
 
-        // Move everything out, including the rent reserve. A system account
-        // left with 0 lamports is removed by the runtime.
         transfer(cpi_ctx, self.vault.lamports())
     }
 }

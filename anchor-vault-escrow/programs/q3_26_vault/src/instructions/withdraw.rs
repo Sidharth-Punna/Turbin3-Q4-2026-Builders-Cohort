@@ -32,7 +32,6 @@ impl<'info> Withdraw<'info> {
     pub fn withdraw(&mut self, amount: u64) -> Result<()> {
         require!(amount > 0, ErrorCode::InvalidAmount);
 
-        // The vault has to stay rent-exempt; only `close` may drain it fully.
         let rent_exempt = Rent::get()?.minimum_balance(self.vault.data_len());
         let available = self.vault.lamports().saturating_sub(rent_exempt);
         require!(amount <= available, ErrorCode::InsufficientFunds);

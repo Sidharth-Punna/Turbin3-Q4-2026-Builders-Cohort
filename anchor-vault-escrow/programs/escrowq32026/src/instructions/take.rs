@@ -13,7 +13,6 @@ use crate::{error::ErrorCode, state::Escrow, ESCROW_SEED};
 pub struct Take<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
-    /// Receives token B, plus the rent of the escrow and the vault when they close.
     #[account(mut)]
     pub maker: SystemAccount<'info>,
     #[account(mint::token_program = token_program)]
@@ -66,14 +65,12 @@ pub struct Take<'info> {
 }
 
 impl<'info> Take<'info> {
-    /// The offer can only be taken strictly before its expiration timestamp.
     pub fn check_not_expired(&self) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         require!(now < self.escrow.expiration, ErrorCode::EscrowExpired);
         Ok(())
     }
 
-    /// Taker pays the maker the amount of token B the maker asked for.
     pub fn pay_maker(&mut self) -> Result<()> {
         let accounts = TransferChecked {
             from: self.taker_ata_b.to_account_info(),
@@ -85,8 +82,6 @@ impl<'info> Take<'info> {
         transfer_checked(cpi_ctx, self.escrow.receive, self.mint_b.decimals)
     }
 
-    /// Escrow PDA signs to send all of token A to the taker, then closes the
-    /// vault and returns its rent to the maker.
     pub fn release_vault_and_close(&mut self) -> Result<()> {
         let maker_key = self.maker.key();
         let seed = self.escrow.seed.to_le_bytes();
