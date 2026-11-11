@@ -1,8 +1,15 @@
-# anchor_vault_starter_q3_26
+# anchor-vault-escrow
 
-My Turbin3 Q4 2026 Builders Cohort vault assignment: an Anchor program that gives every user their own SOL vault. It started from [moses7054/anchor_vault_starter_q3_26](https://github.com/moses7054/anchor_vault_starter_q3_26). The starter shipped `initialize` and `deposit`; I wrote `withdraw` and `close` and enabled their steps in the test.
+My Turbin3 Q4 2026 Builders Cohort Anchor programs, built and tested together in one Anchor workspace: a per-user SOL vault and a token escrow.
 
-## How it works
+| Program | Folder | Started from | Status |
+|---|---|---|---|
+| Vault | [`programs/q3_26_vault`](programs/q3_26_vault) | [moses7054/anchor_vault_starter_q3_26](https://github.com/moses7054/anchor_vault_starter_q3_26), which shipped `initialize` and `deposit` | Done. I wrote `withdraw` and `close`. |
+| Escrow | [`programs/escrowq32026`](programs/escrowq32026) | [ShrinathNR/tubine-escrow](https://github.com/ShrinathNR/tubine-escrow), which shipped `make` and `refund` | In progress. `take` and `update` are still to write. |
+
+Both starters' commit histories are kept in this repo. `git log` shows the vault template's commits followed by mine, merged in by the "Add 'anchor-vault-escrow/'" commit, and the escrow template's commit, merged in by "Add the escrow starter from ShrinathNR/tubine-escrow". Run every command below from inside this folder.
+
+## Vault
 
 Each user gets two PDAs, both derived from their wallet:
 
@@ -24,7 +31,7 @@ Each user gets two PDAs, both derived from their wallet:
 - **`withdraw` keeps the vault alive; `close` doesn't.** `withdraw` can only take `lamports - rent_exempt_minimum`, so the vault stays a valid account while it's in use. `close` takes everything, rent included. A system account left with 0 lamports is removed by the runtime, so nothing remains on chain.
 - **No signer can withdraw from someone else's vault.** Every instruction derives both PDAs from the signer's key; after `initialize`, it uses the bumps stored in `vault_state`. Passing another user's `vault` fails the seeds constraint.
 
-## Tests
+### Tests
 
 [`tests/test_initialize.rs`](programs/q3_26_vault/tests/test_initialize.rs) runs the program in [LiteSVM](https://github.com/LiteSVM/litesvm). A single test walks through a vault's whole lifecycle and checks balances after every step:
 
@@ -35,7 +42,20 @@ Each user gets two PDAs, both derived from their wallet:
 | `withdraw` 0.1 SOL | `vault` holds rent + 0.4 SOL |
 | `close` | `vault_state` is gone; `vault` holds 0 |
 
-![cargo test output: all tests passing](docs/cargo-test.png)
+![cargo test output for the vault: all tests passing](docs/cargo-test.png)
+
+## Escrow
+
+A maker deposits token A into a vault owned by the escrow PDA `["escrow", maker, seed]` and names how much token B they want for it. A taker pays that token B and receives the vault's token A in the same transaction. Until someone takes the offer, the maker can take their tokens back.
+
+| Instruction | State |
+|---|---|
+| `make(seed, deposit, receive, expiration)` | From the starter. Creates the escrow and its vault, deposits token A, and stores an expiry timestamp. |
+| `refund` | From the starter. Returns token A to the maker and closes the vault and the escrow. |
+| `take` | To write. Will check the expiry against the clock sysvar, pay token B to the maker, release token A to the taker and close both accounts. |
+| `update` | To write. Will let the maker change the escrow's terms before anyone takes it. |
+
+[`tests/mod.rs`](programs/escrowq32026/tests/mod.rs) has the starter's LiteSVM test, `test_make_and_refund`, which passes. Tests for `take`, `update` and an expired `take` will come with those instructions. The starter's diagrams of each flow are in [`docs/escrow`](docs/escrow).
 
 ## Running it
 
@@ -46,24 +66,35 @@ anchor build
 cargo test
 ```
 
-The test loads `target/deploy/q3_26_vault.so`, so run `anchor build` first.
+`cargo test` runs both programs' tests. Each test loads its program from `target/deploy`, so run `anchor build` first.
 
-`anchor build` warns that the program ID doesn't match the keypair in `target/deploy`. That comes from the starter: its `declare_id!` belongs to a keypair that isn't in the repo, so `anchor build` generated a different one locally. The test deploys the program at its `declare_id!`, so the warning doesn't affect it. Run `anchor keys sync` only if you want to deploy under your own keypair.
+`anchor build` warns that a program ID doesn't match the keypair in `target/deploy`. That comes from the starters: their `declare_id!`s belong to keypairs that aren't in the repo, so `anchor build` generates different ones locally. The tests deploy each program at its `declare_id!`, so the warning doesn't affect them. Run `anchor keys sync` only if you want to deploy under your own keypairs.
 
 ## Layout
 
 ```
-programs/q3_26_vault/
-├── src/
-│   ├── lib.rs                  # program entrypoints
-│   ├── constants.rs            # PDA seeds
-│   ├── error.rs                # InvalidAmount, InsufficientFunds
-│   ├── state.rs                # VaultState
-│   └── instructions/
-│       ├── initialize.rs
-│       ├── deposit.rs
-│       ├── withdraw.rs
-│       └── close.rs
-└── tests/
-    └── test_initialize.rs      # LiteSVM lifecycle test
+anchor-vault-escrow/
+├── Anchor.toml                   # registers both programs
+├── docs/
+│   ├── cargo-test.png            # vault test run
+│   └── escrow/                   # make, take and refund diagrams from the escrow starter
+└── programs/
+    ├── q3_26_vault/
+    │   ├── src/
+    │   │   ├── lib.rs            # program entrypoints
+    │   │   ├── constants.rs      # PDA seeds
+    │   │   ├── error.rs          # InvalidAmount, InsufficientFunds
+    │   │   ├── state.rs          # VaultState
+    │   │   └── instructions/     # initialize, deposit, withdraw, close
+    │   └── tests/
+    │       └── test_initialize.rs  # LiteSVM lifecycle test
+    └── escrowq32026/
+        ├── src/
+        │   ├── lib.rs            # program entrypoints
+        │   ├── constants.rs      # escrow seed
+        │   ├── error.rs          # EscrowExpired
+        │   ├── state.rs          # Escrow
+        │   └── instructions/     # make, refund, take (empty for now)
+        └── tests/
+            └── mod.rs            # LiteSVM make + refund test
 ```
