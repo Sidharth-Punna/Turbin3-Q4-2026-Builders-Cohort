@@ -5,7 +5,7 @@ My Turbin3 Q4 2026 Builders Cohort Anchor programs, built and tested together in
 | Program | Folder | Started from | Status |
 |---|---|---|---|
 | Vault | [`programs/q3_26_vault`](programs/q3_26_vault) | [moses7054/anchor_vault_starter_q3_26](https://github.com/moses7054/anchor_vault_starter_q3_26), which shipped `initialize` and `deposit` | Done. I wrote `withdraw` and `close`. |
-| Escrow | [`programs/escrowq32026`](programs/escrowq32026) | [ShrinathNR/tubine-escrow](https://github.com/ShrinathNR/tubine-escrow), which shipped `make` and `refund` | In progress. `take` and `update` are still to write. |
+| Escrow | [`programs/escrowq32026`](programs/escrowq32026) | [ShrinathNR/tubine-escrow](https://github.com/ShrinathNR/tubine-escrow), which shipped `make` and `refund` | In progress. I wrote `take`; `update` is still to write. |
 
 Both starters' commit histories are kept in this repo. `git log` shows the vault template's commits followed by mine, merged in by the "Add 'anchor-vault-escrow/'" commit, and the escrow template's commit, merged in by "Add the escrow starter from ShrinathNR/tubine-escrow". Run every command below from inside this folder.
 
@@ -52,10 +52,18 @@ A maker deposits token A into a vault owned by the escrow PDA `["escrow", maker,
 |---|---|
 | `make(seed, deposit, receive, expiration)` | From the starter. Creates the escrow and its vault, deposits token A, and stores an expiry timestamp. |
 | `refund` | From the starter. Returns token A to the maker and closes the vault and the escrow. |
-| `take` | To write. Will check the expiry against the clock sysvar, pay token B to the maker, release token A to the taker and close both accounts. |
+| `take` | Written by me. Fails with `EscrowExpired` once the clock sysvar reaches the expiry. Otherwise the taker pays the maker the token B they asked for and receives all of the vault's token A. The escrow PDA signs both the vault transfer and the vault's closing, and the maker gets the rent of the vault and the escrow back. If the taker's token A account or the maker's token B account doesn't exist yet, `take` creates it, paid for by the taker. |
 | `update` | To write. Will let the maker change the escrow's terms before anyone takes it. |
 
-[`tests/mod.rs`](programs/escrowq32026/tests/mod.rs) has the starter's LiteSVM test, `test_make_and_refund`, which passes. Tests for `take`, `update` and an expired `take` will come with those instructions. The starter's diagrams of each flow are in [`docs/escrow`](docs/escrow).
+[`tests/mod.rs`](programs/escrowq32026/tests/mod.rs) runs the escrow in LiteSVM:
+
+| Test | Checked |
+|---|---|
+| `test_make_and_refund` (from the starter) | `make` fills the vault and records the offer; `refund` closes the vault and the escrow |
+| `test_make_and_take` | The taker receives all of token A and pays exactly the token B asked for, which lands in the maker's new token account. The vault and the escrow are closed, and the maker's SOL goes up by exactly their rent. |
+| `test_take_after_expiration_fails` | With the clock moved to the expiry second, `take` fails with `EscrowExpired`, and the vault and the taker's balances are unchanged |
+
+A test for `update` will come with it. The starter's diagrams of each flow are in [`docs/escrow`](docs/escrow).
 
 ## Running it
 
@@ -94,7 +102,7 @@ anchor-vault-escrow/
         │   ├── constants.rs      # escrow seed
         │   ├── error.rs          # EscrowExpired
         │   ├── state.rs          # Escrow
-        │   └── instructions/     # make, refund, take (empty for now)
+        │   └── instructions/     # make, take, refund
         └── tests/
-            └── mod.rs            # LiteSVM make + refund test
+            └── mod.rs            # LiteSVM make/refund, make/take and expired-take tests
 ```
