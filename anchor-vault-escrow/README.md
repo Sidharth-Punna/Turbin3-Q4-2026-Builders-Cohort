@@ -2,13 +2,6 @@
 
 My Turbin3 Q4 2026 Builders Cohort Anchor programs, built and tested together in one Anchor workspace: a per-user SOL vault and a token escrow.
 
-| Program | Folder | Started from | Status |
-|---|---|---|---|
-| Vault | [`programs/q3_26_vault`](programs/q3_26_vault) | [moses7054/anchor_vault_starter_q3_26](https://github.com/moses7054/anchor_vault_starter_q3_26), which shipped `initialize` and `deposit` | Done. I wrote `withdraw` and `close`. |
-| Escrow | [`programs/escrowq32026`](programs/escrowq32026) | [ShrinathNR/tubine-escrow](https://github.com/ShrinathNR/tubine-escrow), which shipped `make` and `refund` | In progress. I wrote `take`; `update` is still to write. |
-
-Both starters' commit histories are kept in this repo. `git log` shows the vault template's commits followed by mine, merged in by the "Add 'anchor-vault-escrow/'" commit, and the escrow template's commit, merged in by "Add the escrow starter from ShrinathNR/tubine-escrow". Run every command below from inside this folder.
-
 ## Vault
 
 Each user gets two PDAs, both derived from their wallet:
@@ -42,8 +35,6 @@ Each user gets two PDAs, both derived from their wallet:
 | `withdraw` 0.1 SOL | `vault` holds rent + 0.4 SOL |
 | `close` | `vault_state` is gone; `vault` holds 0 |
 
-![cargo test output for the vault: all tests passing](docs/cargo-test.png)
-
 ## Escrow
 
 A maker deposits token A into a vault owned by the escrow PDA `["escrow", maker, seed]` and names how much token B they want for it. A taker pays that token B and receives the vault's token A in the same transaction. Until someone takes the offer, the maker can take their tokens back.
@@ -74,7 +65,9 @@ anchor build
 cargo test
 ```
 
-`cargo test` runs both programs' tests. Each test loads its program from `target/deploy`, so run `anchor build` first.
+`cargo test` runs both programs' tests. Each test loads its program from `target/deploy`, so run `anchor build` first. All six pass:
+
+![cargo test output: all six tests pass across the escrow and the vault](docs/cargo-test.png)
 
 `anchor build` warns that a program ID doesn't match the keypair in `target/deploy`. That comes from the starters: their `declare_id!`s belong to keypairs that aren't in the repo, so `anchor build` generates different ones locally. The tests deploy each program at its `declare_id!`, so the warning doesn't affect them. Run `anchor keys sync` only if you want to deploy under your own keypairs.
 
@@ -84,7 +77,7 @@ cargo test
 anchor-vault-escrow/
 ├── Anchor.toml                   # registers both programs
 ├── docs/
-│   ├── cargo-test.png            # vault test run
+│   ├── cargo-test.png            # cargo test output for both programs
 │   └── escrow/                   # make, take and refund diagrams from the escrow starter
 └── programs/
     ├── q3_26_vault/
